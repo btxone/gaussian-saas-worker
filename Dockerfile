@@ -1,0 +1,56 @@
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PIP_NO_CACHE_DIR=1
+ENV GAUSSIAN_SPLATTING_ROOT=/opt/gaussian-splatting
+ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
+
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-dev \
+    python3-pip \
+    git \
+    wget \
+    curl \
+    ffmpeg \
+    colmap \
+    build-essential \
+    cmake \
+    ninja-build \
+    libglew-dev \
+    libglm-dev \
+    libopencv-dev \
+    libboost-all-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
+    libatlas-base-dev \
+    libsuitesparse-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip setuptools wheel
+
+RUN git clone --recursive https://github.com/graphdeco-inria/gaussian-splatting.git ${GAUSSIAN_SPLATTING_ROOT}
+
+RUN python3 -m pip install \
+    torch==2.3.1+cu121 \
+    torchvision==0.18.1+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+RUN python3 -m pip install \
+    plyfile \
+    tqdm \
+    opencv-python-headless \
+    joblib \
+    ${GAUSSIAN_SPLATTING_ROOT}/submodules/diff-gaussian-rasterization \
+    ${GAUSSIAN_SPLATTING_ROOT}/submodules/simple-knn \
+    ${GAUSSIAN_SPLATTING_ROOT}/submodules/fused-ssim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN python3 -m pip install -r requirements.txt
+
+COPY . .
+
+CMD ["python3", "handler.py"]

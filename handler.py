@@ -25,6 +25,7 @@ def handler(job):
     job_input = job["input"]
     project_id = job_input["project_id"]
     input_video_url = job_input["input_video_url"]
+    output_bucket = job_input.get("output_bucket")
     output_prefix = job_input["output_prefix"]
     settings = job_input["settings"]
 
@@ -56,7 +57,7 @@ def handler(job):
                 thumbnail_target.write_bytes(thumbnail_path.read_bytes())
                 outputs["thumbnail"] = thumbnail_target
             log_event("Uploading outputs", project_id=project_id, outputs=list(outputs.keys()))
-            uploaded = upload_outputs(outputs, output_prefix)
+            uploaded = upload_outputs(outputs, output_prefix, output_bucket)
 
         log_event("Worker completed", project_id=project_id, outputs=uploaded)
         return {

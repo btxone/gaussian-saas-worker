@@ -49,6 +49,8 @@ S3_KEY_PREFIX=gauss-saas
 
 For AWS S3, `S3_ENDPOINT` can be empty. For Cloudflare R2, Backblaze B2, MinIO, or another S3-compatible provider, set the provider endpoint.
 
+The worker also accepts AWS-style aliases (`AWS_S3_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) for easier RunPod setup.
+
 ## Backend Environment Variables
 
 Set these in `app/backend/.env`:

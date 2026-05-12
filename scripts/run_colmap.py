@@ -53,7 +53,7 @@ def run_colmap(dataset_dir: Path) -> Path:
             "--database_path",
             str(database_path),
             "--SequentialMatching.overlap",
-            "12",
+            "20",
             "--SiftMatching.guided_matching",
             "1",
             "--SiftMatching.use_gpu",
@@ -64,6 +64,7 @@ def run_colmap(dataset_dir: Path) -> Path:
     _run_mapper(database_path, images_dir, distorted_sparse_dir, logs)
 
     if not _has_sparse_model(sparse_model_dir):
+        _reset_sparse_dir(distorted_sparse_dir)
         _run(
             [
                 "colmap",
@@ -126,10 +127,11 @@ def _run_mapper(database_path: Path, images_dir: Path, sparse_dir: Path, logs: l
             "0.000001",
         ],
         logs,
+        check=False,
     )
 
 
-def _run(command: list[str], logs: list[str]) -> None:
+def _run(command: list[str], logs: list[str], check: bool = True) -> int:
     print(f"Running command: {' '.join(command)}", flush=True)
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
@@ -140,8 +142,9 @@ def _run(command: list[str], logs: list[str]) -> None:
     if output:
         logs.append(f"$ {' '.join(command)}\n{output}")
         print(_tail([output], max_chars=3000), flush=True)
-    if result.returncode != 0:
+    if check and result.returncode != 0:
         raise ColmapError(f"COLMAP command failed with exit code {result.returncode}: {' '.join(command)}\n{_tail(logs)}")
+    return result.returncode
 
 
 def _normalize_sparse_layout(dataset_dir: Path) -> None:
@@ -152,6 +155,12 @@ def _normalize_sparse_layout(dataset_dir: Path) -> None:
         source = sparse_dir / name
         if source.exists():
             shutil.move(str(source), str(sparse_zero_dir / name))
+
+
+def _reset_sparse_dir(sparse_dir: Path) -> None:
+    if sparse_dir.exists():
+        shutil.rmtree(sparse_dir)
+    sparse_dir.mkdir(parents=True, exist_ok=True)
 
 
 def _has_sparse_model(sparse_model_dir: Path) -> bool:

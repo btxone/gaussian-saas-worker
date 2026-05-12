@@ -17,6 +17,10 @@ def log_event(message: str, **data):
     print(json.dumps({"message": message, **data}, default=str), flush=True)
 
 
+def truncate(value: str, max_chars: int = 3000) -> str:
+    return value if len(value) <= max_chars else value[-max_chars:]
+
+
 def handler(job):
     job_input = job["input"]
     project_id = job_input["project_id"]
@@ -63,14 +67,16 @@ def handler(job):
         }
     except Exception as exc:
         error_traceback = traceback.format_exc()
-        log_event("Worker failed", project_id=project_id, error_message=str(exc), traceback=error_traceback[-4000:])
+        error_message = truncate(str(exc))
+        traceback_tail = truncate(error_traceback)
+        log_event("Worker failed", project_id=project_id, error_message=error_message, traceback=traceback_tail)
         return {
             "status": "failed",
             "project_id": project_id,
             "error_code": "PROCESSING_FAILED",
-            "error_message": str(exc),
-            "traceback": error_traceback[-4000:],
-            "error": {"code": "PROCESSING_FAILED", "message": str(exc)},
+            "error_message": error_message,
+            "traceback": traceback_tail,
+            "error": {"code": "PROCESSING_FAILED", "message": error_message},
         }
 
 

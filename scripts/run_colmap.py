@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+import os
 from pathlib import Path
 
 
@@ -39,6 +40,8 @@ def run_colmap(dataset_dir: Path) -> Path:
             "1600",
             "--SiftExtraction.peak_threshold",
             "0.003",
+            "--SiftExtraction.use_gpu",
+            "0",
         ],
         logs,
     )
@@ -53,6 +56,8 @@ def run_colmap(dataset_dir: Path) -> Path:
             "12",
             "--SiftMatching.guided_matching",
             "1",
+            "--SiftMatching.use_gpu",
+            "0",
         ],
         logs,
     )
@@ -67,6 +72,8 @@ def run_colmap(dataset_dir: Path) -> Path:
                 str(database_path),
                 "--SiftMatching.guided_matching",
                 "1",
+                "--SiftMatching.use_gpu",
+                "0",
             ],
             logs,
         )
@@ -124,7 +131,11 @@ def _run_mapper(database_path: Path, images_dir: Path, sparse_dir: Path, logs: l
 
 def _run(command: list[str], logs: list[str]) -> None:
     print(f"Running command: {' '.join(command)}", flush=True)
-    result = subprocess.run(command, capture_output=True, text=True)
+    env = os.environ.copy()
+    env["QT_QPA_PLATFORM"] = "offscreen"
+    env["XDG_RUNTIME_DIR"] = "/tmp/runtime-root"
+    Path(env["XDG_RUNTIME_DIR"]).mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(command, capture_output=True, text=True, env=env)
     output = "\n".join(part for part in [result.stdout, result.stderr] if part)
     if output:
         logs.append(f"$ {' '.join(command)}\n{output}")

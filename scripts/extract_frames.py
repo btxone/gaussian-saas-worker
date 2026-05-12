@@ -4,8 +4,8 @@ from pathlib import Path
 
 def extract_frames(normalized_video: Path, frames_dir: Path, settings: dict) -> int:
     frames_dir.mkdir(parents=True, exist_ok=True)
-    fps = settings.get("fps", 2)
-    max_frames = settings.get("max_frames", 600)
+    fps = max(float(settings.get("fps", 4)), 4.0)
+    max_frames = max(int(settings.get("max_frames", 900)), 900)
     command = [
         "ffmpeg",
         "-y",
@@ -26,4 +26,3 @@ def extract_frames(normalized_video: Path, frames_dir: Path, settings: dict) -> 
         if index not in keep_indexes:
             frame.unlink()
     return max_frames
-

@@ -5,6 +5,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
 ENV GAUSSIAN_SPLATTING_ROOT=/opt/gaussian-splatting
 ENV TORCH_CUDA_ARCH_LIST="7.5;8.0;8.6;8.9;9.0"
+ENV QT_QPA_PLATFORM=offscreen
 
 RUN apt-get update && apt-get install -y \
     python3 \

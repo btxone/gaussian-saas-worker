@@ -22,7 +22,7 @@ The frontend calls that endpoint automatically while a job is active.
 From the repository root:
 
 ```powershell
-docker build -t gaussian-saas-worker:latest app/runpod-worker
+docker build -t gaussian-saas-worker:latest .
 ```
 
 Tag and push to your registry:
@@ -44,6 +44,7 @@ S3_BUCKET=
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
 S3_REGION=us-east-1
+S3_KEY_PREFIX=gauss-saas
 ```
 
 For AWS S3, `S3_ENDPOINT` can be empty. For Cloudflare R2, Backblaze B2, MinIO, or another S3-compatible provider, set the provider endpoint.
@@ -59,6 +60,7 @@ S3_BUCKET=
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
 S3_REGION=us-east-1
+S3_KEY_PREFIX=gauss-saas
 RUNPOD_API_KEY=
 RUNPOD_ENDPOINT_ID=
 PUBLIC_APP_URL=http://localhost:3000
@@ -75,7 +77,7 @@ The backend sends:
     "project_id": "uuid",
     "input_video_url": "signed-download-url",
     "output_bucket": "bucket-name",
-    "output_prefix": "projects/uuid/output",
+    "output_prefix": "gauss-saas/projects/uuid/output",
     "settings": {
       "normalize": {
         "max_width": 1920,
@@ -105,8 +107,8 @@ On success:
   "status": "completed",
   "project_id": "uuid",
   "outputs": {
-    "ply": "projects/uuid/output/model.ply",
-    "thumbnail": "projects/uuid/output/thumbnail.jpg"
+    "ply": "gauss-saas/projects/uuid/output/model.ply",
+    "thumbnail": "gauss-saas/projects/uuid/output/thumbnail.jpg"
   },
   "metadata": {
     "frames_used": 420

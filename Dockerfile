@@ -41,7 +41,9 @@ RUN python3 -m pip install \
     plyfile \
     tqdm \
     opencv-python-headless \
-    joblib \
+    joblib
+
+RUN python3 -m pip install --no-build-isolation \
     ${GAUSSIAN_SPLATTING_ROOT}/submodules/diff-gaussian-rasterization \
     ${GAUSSIAN_SPLATTING_ROOT}/submodules/simple-knn \
     ${GAUSSIAN_SPLATTING_ROOT}/submodules/fused-ssim

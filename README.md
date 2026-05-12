@@ -5,7 +5,7 @@ This MVP uses the official Graphdeco 3D Gaussian Splatting implementation inside
 ## Why This Pipeline
 
 - FFmpeg normalizes videos and extracts stable frames.
-- COLMAP estimates cameras using the official Graphdeco `convert.py` flow.
+- COLMAP estimates cameras with CPU SIFT, phone-friendly OPENCV calibration, high-overlap sequential matching, and mapper quality profiles.
 - Graphdeco `train.py` trains the Gaussian Splatting scene.
 - The worker uploads generated outputs back to S3-compatible storage.
 
@@ -87,12 +87,12 @@ The backend sends:
         "crf": 20
       },
       "frames": {
-        "fps": 2,
-        "max_frames": 600
+        "fps": 10,
+        "max_frames": 1600
       },
       "training": {
         "quality": "preview",
-        "iterations": 7000
+        "iterations": 30000
       },
       "exports": ["ply"]
     }
@@ -136,4 +136,5 @@ On failure:
 - The first Docker build is heavy because it compiles Gaussian Splatting CUDA submodules.
 - Keep RunPod disk size generous enough for frames, COLMAP output, and model checkpoints.
 - For higher quality, increase `training.iterations` and `frames.max_frames`, but expect longer GPU time.
+- The worker enforces a practical quality floor: at least 8 fps / 1600 frame budget and 30000 training iterations. COLMAP must register enough frames, otherwise the job fails with diagnostics instead of returning a very poor splat.
 - `.splat` or `.spz` export should be added only with a real converter. The MVP currently exports high-quality `.ply`, which the viewer attempts to load first.

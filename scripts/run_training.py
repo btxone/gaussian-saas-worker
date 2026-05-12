@@ -4,7 +4,7 @@ from pathlib import Path
 
 def run_training(dataset_dir: Path, model_dir: Path, settings: dict) -> Path:
     model_dir.mkdir(parents=True, exist_ok=True)
-    iterations = int(settings.get("iterations", 7000))
+    iterations = max(int(settings.get("iterations", 30000)), 30000)
     train_script = Path("/opt/gaussian-splatting/train.py")
     subprocess.run(
         [

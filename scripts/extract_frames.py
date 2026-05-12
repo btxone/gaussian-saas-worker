@@ -4,8 +4,8 @@ from pathlib import Path
 
 def extract_frames(normalized_video: Path, frames_dir: Path, settings: dict) -> int:
     frames_dir.mkdir(parents=True, exist_ok=True)
-    fps = max(float(settings.get("fps", 4)), 4.0)
-    max_frames = max(int(settings.get("max_frames", 900)), 900)
+    fps = max(float(settings.get("fps", 10)), 8.0)
+    max_frames = max(int(settings.get("max_frames", 1600)), 1600)
     command = [
         "ffmpeg",
         "-y",

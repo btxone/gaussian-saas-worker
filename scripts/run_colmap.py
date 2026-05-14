@@ -122,12 +122,10 @@ def _run_sequential_matcher(database_path: Path, logs: list[str]) -> None:
         "--SiftMatching.guided_matching",
         "1",
     ]
-    _run_sift_stage(
+    _run_matching_stage(
         stage_name="sequential_matcher",
         base_command=base_command,
         logs=logs,
-        gpu_args=["--SiftMatching.use_gpu", "1", "--SiftMatching.gpu_index", "0"],
-        cpu_args=["--SiftMatching.use_gpu", "0"],
     )
 
 
@@ -140,13 +138,36 @@ def _run_exhaustive_matcher(database_path: Path, logs: list[str]) -> None:
         "--SiftMatching.guided_matching",
         "1",
     ]
-    _run_sift_stage(
+    _run_matching_stage(
         stage_name="exhaustive_matcher",
         base_command=base_command,
         logs=logs,
-        gpu_args=["--SiftMatching.use_gpu", "1", "--SiftMatching.gpu_index", "0"],
-        cpu_args=["--SiftMatching.use_gpu", "0"],
     )
+
+
+def _run_matching_stage(stage_name: str, base_command: list[str], logs: list[str]) -> None:
+    # COLMAP's GPU matcher needs an OpenGL context. RunPod serverless exposes CUDA,
+    # but not always the GL context required here, so CPU matching is the reliable
+    # default. It can still be forced with COLMAP_MATCHING_GPU_MODE=gpu.
+    mode = _colmap_matching_gpu_mode()
+    cpu_args = ["--SiftMatching.use_gpu", "0"]
+    gpu_args = ["--SiftMatching.use_gpu", "1", "--SiftMatching.gpu_index", "0"]
+    if mode == "cpu":
+        print(f"COLMAP {stage_name} using CPU SIFT matching", flush=True)
+        _run(base_command + cpu_args, logs)
+        return
+
+    print(f"COLMAP {stage_name} trying GPU SIFT matching", flush=True)
+    returncode = _run(base_command + gpu_args, logs, check=False)
+    if returncode == 0:
+        print(f"COLMAP {stage_name} completed with GPU SIFT matching", flush=True)
+        return
+
+    if mode == "gpu":
+        raise ColmapError(f"COLMAP {stage_name} GPU matching failed and fallback is disabled.")
+
+    print(f"COLMAP {stage_name} GPU SIFT matching failed; falling back to CPU SIFT matching", flush=True)
+    _run(base_command + cpu_args, logs)
 
 
 def _run_sift_stage(stage_name: str, base_command: list[str], logs: list[str], gpu_args: list[str], cpu_args: list[str]) -> None:
@@ -176,6 +197,15 @@ def _colmap_gpu_mode() -> str:
     if value in {"1", "true", "on", "gpu"}:
         return "gpu"
     return "auto"
+
+
+def _colmap_matching_gpu_mode() -> str:
+    value = os.getenv("COLMAP_MATCHING_GPU_MODE", "cpu").strip().lower()
+    if value in {"1", "true", "on", "gpu"}:
+        return "gpu"
+    if value == "auto":
+        return "auto"
+    return "cpu"
 
 
 def _run_best_mapper(database_path: Path, images_dir: Path, sparse_dir: Path, logs: list[str], image_count: int) -> Path | None:
@@ -253,14 +283,26 @@ def _run_best_mapper(database_path: Path, images_dir: Path, sparse_dir: Path, lo
 
 def _run(command: list[str], logs: list[str], check: bool = True) -> int:
     print(f"Running command: {' '.join(command)}", flush=True)
-    result = subprocess.run(command, capture_output=True, text=True, env=_colmap_env())
-    output = "\n".join(part for part in [result.stdout, result.stderr] if part)
+    process = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        env=_colmap_env(),
+        bufsize=1,
+    )
+    output_lines: list[str] = []
+    assert process.stdout is not None
+    for line in process.stdout:
+        output_lines.append(line)
+        print(line, end="", flush=True)
+    returncode = process.wait()
+    output = "".join(output_lines)
     if output:
         logs.append(f"$ {' '.join(command)}\n{output}")
-        print(_tail([output], max_chars=3000), flush=True)
-    if check and result.returncode != 0:
-        raise ColmapError(f"COLMAP command failed with exit code {result.returncode}: {' '.join(command)}\n{_tail(logs)}")
-    return result.returncode
+    if check and returncode != 0:
+        raise ColmapError(f"COLMAP command failed with exit code {returncode}: {' '.join(command)}\n{_tail(logs)}")
+    return returncode
 
 
 def _colmap_env() -> dict[str, str]:

@@ -7,6 +7,7 @@ import runpod
 
 from scripts.convert_outputs import convert_outputs
 from scripts.extract_frames import extract_frames
+from scripts.gpu_telemetry import print_gpu_telemetry
 from scripts.normalize_video import normalize_video
 from scripts.run_colmap import run_colmap
 from scripts.run_training import run_training
@@ -47,10 +48,15 @@ def handler(job):
             frames_used = extract_frames(normalized, frames_dir, settings["frames"])
             thumbnail_path = next(iter(sorted(frames_dir.glob("*.jpg"))), None)
             log_event("Running COLMAP", project_id=project_id, frames_used=frames_used)
+            print_gpu_telemetry("before_colmap")
             run_colmap(dataset_dir)
+            print_gpu_telemetry("after_colmap")
             log_event("Training Gaussian Splatting", project_id=project_id)
+            print_gpu_telemetry("before_training")
             ply_path = run_training(dataset_dir, model_dir, settings["training"])
+            print_gpu_telemetry("after_training")
             log_event("Converting outputs", project_id=project_id)
+            print_gpu_telemetry("before_conversion")
             outputs, conversion_errors = convert_outputs(ply_path, export_dir, settings.get("exports", ["ply"]))
             if thumbnail_path:
                 thumbnail_target = export_dir / "thumbnail.jpg"

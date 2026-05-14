@@ -5,7 +5,7 @@ This MVP uses the official Graphdeco 3D Gaussian Splatting implementation inside
 ## Why This Pipeline
 
 - FFmpeg normalizes videos and extracts stable frames.
-- COLMAP estimates cameras with CPU SIFT, phone-friendly OPENCV calibration, high-overlap sequential matching, and mapper quality profiles.
+- COLMAP estimates cameras with GPU-auto SIFT and matching, phone-friendly OPENCV calibration, high-overlap sequential matching, and mapper quality profiles. If GPU SIFT fails in the headless RunPod container, it falls back to CPU SIFT automatically.
 - Graphdeco `train.py` trains the Gaussian Splatting scene.
 - PlayCanvas `splat-transform` converts the trained PLY to `.sog` and `.compressed.ply` for SuperSplat viewing.
 - The worker uploads generated outputs back to S3-compatible storage.
@@ -46,11 +46,14 @@ S3_ACCESS_KEY=
 S3_SECRET_KEY=
 S3_REGION=us-east-1
 S3_KEY_PREFIX=gauss-saas
+COLMAP_GPU_MODE=auto
 ```
 
 For AWS S3, `S3_ENDPOINT` can be empty. For Cloudflare R2, Backblaze B2, MinIO, or another S3-compatible provider, set the provider endpoint.
 
 The worker also accepts AWS-style aliases (`AWS_S3_BUCKET_NAME`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`) for easier RunPod setup.
+
+`COLMAP_GPU_MODE` supports `auto`, `gpu`, or `cpu`. Keep `auto` for production: it tries GPU feature extraction/matching first and falls back to CPU if COLMAP cannot create a GPU/OpenGL context.
 
 ## Backend Environment Variables
 
@@ -140,7 +143,8 @@ On failure:
 
 - The first Docker build is heavy because it compiles Gaussian Splatting CUDA submodules.
 - Keep RunPod disk size generous enough for frames, COLMAP output, and model checkpoints.
-- For higher quality, increase `training.iterations` and `frames.max_frames`, but expect longer GPU time.
+- For higher quality, increase `training.iterations` and `frames.max_frames`, but expect longer COLMAP and GPU training time.
 - The worker enforces a practical quality floor: at least 8 fps / 1600 frame budget and 30000 training iterations. COLMAP must register enough frames, otherwise the job fails with diagnostics instead of returning a very poor splat.
 - `.sog` is the preferred PlayCanvas/SuperSplat delivery format. `.compressed.ply` and `.ply` are kept as fallbacks for debugging and download.
 - The Docker image installs Node.js 20, Vulkan runtime libraries, and `@playcanvas/splat-transform` so RunPod can emit the viewer-friendly formats inside the same job. SOG export tries GPU first and falls back to CPU for reliability.
+- Logs include `gpu_telemetry` and `torch_cuda` records so RunPod telemetry can be correlated with worker phases. `mapper` is mostly CPU-bound in COLMAP; VRAM usage should appear during GPU SIFT/matching, Graphdeco training, and SOG conversion.

@@ -24,65 +24,23 @@ def run_colmap(dataset_dir: Path) -> Path:
     distorted_sparse_dir.mkdir(parents=True, exist_ok=True)
 
     logs: list[str] = []
-    _run(
-        [
-            "colmap",
-            "feature_extractor",
-            "--database_path",
-            str(database_path),
-            "--image_path",
-            str(images_dir),
-            "--ImageReader.single_camera",
-            "1",
-            "--ImageReader.camera_model",
-            "OPENCV",
-            "--SiftExtraction.max_image_size",
-            "1920",
-            "--SiftExtraction.max_num_features",
-            "16384",
-            "--SiftExtraction.peak_threshold",
-            "0.003",
-            "--SiftExtraction.estimate_affine_shape",
-            "1",
-            "--SiftExtraction.domain_size_pooling",
-            "1",
-            "--SiftExtraction.use_gpu",
-            "0",
-        ],
-        logs,
+    _run_feature_extractor(
+        database_path=database_path,
+        images_dir=images_dir,
+        logs=logs,
     )
 
-    _run(
-        [
-            "colmap",
-            "sequential_matcher",
-            "--database_path",
-            str(database_path),
-            "--SequentialMatching.overlap",
-            "50",
-            "--SiftMatching.guided_matching",
-            "1",
-            "--SiftMatching.use_gpu",
-            "0",
-        ],
-        logs,
+    _run_sequential_matcher(
+        database_path=database_path,
+        logs=logs,
     )
     sparse_model_dir = _run_best_mapper(database_path, images_dir, distorted_sparse_dir, logs, image_count)
 
     if sparse_model_dir is None:
         _reset_sparse_dir(distorted_sparse_dir)
-        _run(
-            [
-                "colmap",
-                "exhaustive_matcher",
-                "--database_path",
-                str(database_path),
-                "--SiftMatching.guided_matching",
-                "1",
-                "--SiftMatching.use_gpu",
-                "0",
-            ],
-            logs,
+        _run_exhaustive_matcher(
+            database_path=database_path,
+            logs=logs,
         )
         sparse_model_dir = _run_best_mapper(database_path, images_dir, distorted_sparse_dir, logs, image_count)
 
@@ -106,6 +64,118 @@ def run_colmap(dataset_dir: Path) -> Path:
     )
     _normalize_sparse_layout(dataset_dir)
     return dataset_dir / "sparse"
+
+
+def _run_feature_extractor(database_path: Path, images_dir: Path, logs: list[str]) -> None:
+    base_command = [
+        "colmap",
+        "feature_extractor",
+        "--database_path",
+        str(database_path),
+        "--image_path",
+        str(images_dir),
+        "--ImageReader.single_camera",
+        "1",
+        "--ImageReader.camera_model",
+        "OPENCV",
+        "--SiftExtraction.max_image_size",
+        "1920",
+        "--SiftExtraction.max_num_features",
+        "16384",
+        "--SiftExtraction.peak_threshold",
+        "0.003",
+        "--SiftExtraction.estimate_affine_shape",
+        "1",
+        "--SiftExtraction.domain_size_pooling",
+        "1",
+    ]
+    gpu_args = ["--SiftExtraction.use_gpu", "1", "--SiftExtraction.gpu_index", "0"]
+    cpu_args = ["--SiftExtraction.use_gpu", "0"]
+    mode = _colmap_gpu_mode()
+    if mode == "cpu":
+        print("COLMAP feature_extractor using CPU SIFT", flush=True)
+        _run(base_command + cpu_args, logs)
+        return
+
+    print("COLMAP feature_extractor trying GPU SIFT", flush=True)
+    returncode = _run(base_command + gpu_args, logs, check=False)
+    if returncode == 0:
+        print("COLMAP feature_extractor completed with GPU SIFT", flush=True)
+        return
+    if mode == "gpu":
+        raise ColmapError("COLMAP feature_extractor GPU mode failed and fallback is disabled.")
+
+    print("COLMAP feature_extractor GPU SIFT failed; recreating database with CPU SIFT", flush=True)
+    if database_path.exists():
+        database_path.unlink()
+    _run(base_command + cpu_args, logs)
+
+
+def _run_sequential_matcher(database_path: Path, logs: list[str]) -> None:
+    base_command = [
+        "colmap",
+        "sequential_matcher",
+        "--database_path",
+        str(database_path),
+        "--SequentialMatching.overlap",
+        "50",
+        "--SiftMatching.guided_matching",
+        "1",
+    ]
+    _run_sift_stage(
+        stage_name="sequential_matcher",
+        base_command=base_command,
+        logs=logs,
+        gpu_args=["--SiftMatching.use_gpu", "1", "--SiftMatching.gpu_index", "0"],
+        cpu_args=["--SiftMatching.use_gpu", "0"],
+    )
+
+
+def _run_exhaustive_matcher(database_path: Path, logs: list[str]) -> None:
+    base_command = [
+        "colmap",
+        "exhaustive_matcher",
+        "--database_path",
+        str(database_path),
+        "--SiftMatching.guided_matching",
+        "1",
+    ]
+    _run_sift_stage(
+        stage_name="exhaustive_matcher",
+        base_command=base_command,
+        logs=logs,
+        gpu_args=["--SiftMatching.use_gpu", "1", "--SiftMatching.gpu_index", "0"],
+        cpu_args=["--SiftMatching.use_gpu", "0"],
+    )
+
+
+def _run_sift_stage(stage_name: str, base_command: list[str], logs: list[str], gpu_args: list[str], cpu_args: list[str]) -> None:
+    mode = _colmap_gpu_mode()
+    if mode == "cpu":
+        print(f"COLMAP {stage_name} using CPU SIFT", flush=True)
+        _run(base_command + cpu_args, logs)
+        return
+
+    print(f"COLMAP {stage_name} trying GPU SIFT", flush=True)
+    returncode = _run(base_command + gpu_args, logs, check=False)
+    if returncode == 0:
+        print(f"COLMAP {stage_name} completed with GPU SIFT", flush=True)
+        return
+
+    if mode == "gpu":
+        raise ColmapError(f"COLMAP {stage_name} GPU mode failed and fallback is disabled.")
+
+    print(f"COLMAP {stage_name} GPU SIFT failed; falling back to CPU SIFT", flush=True)
+    _run(base_command + cpu_args, logs)
+
+
+def _colmap_gpu_mode() -> str:
+    value = os.getenv("COLMAP_GPU_MODE", "auto").strip().lower()
+    if value in {"0", "false", "off", "cpu"}:
+        return "cpu"
+    if value in {"1", "true", "on", "gpu"}:
+        return "gpu"
+    return "auto"
 
 
 def _run_best_mapper(database_path: Path, images_dir: Path, sparse_dir: Path, logs: list[str], image_count: int) -> Path | None:
@@ -197,6 +267,8 @@ def _colmap_env() -> dict[str, str]:
     env = os.environ.copy()
     env["QT_QPA_PLATFORM"] = "offscreen"
     env["XDG_RUNTIME_DIR"] = "/tmp/runtime-root"
+    env.setdefault("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
+    env.setdefault("CUDA_VISIBLE_DEVICES", "0")
     Path(env["XDG_RUNTIME_DIR"]).mkdir(parents=True, exist_ok=True)
     return env
 

@@ -27,7 +27,14 @@ RUN apt-get update && apt-get install -y \
     libgoogle-glog-dev \
     libgflags-dev \
     libatlas-base-dev \
+    libvulkan1 \
     libsuitesparse-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g @playcanvas/splat-transform@2.1.1 \
+    && npm cache clean --force \
     && rm -rf /var/lib/apt/lists/*
 
 RUN mkdir -p /tmp/runtime-root && chmod 700 /tmp/runtime-root

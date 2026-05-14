@@ -7,6 +7,7 @@ This MVP uses the official Graphdeco 3D Gaussian Splatting implementation inside
 - FFmpeg normalizes videos and extracts stable frames.
 - COLMAP estimates cameras with CPU SIFT, phone-friendly OPENCV calibration, high-overlap sequential matching, and mapper quality profiles.
 - Graphdeco `train.py` trains the Gaussian Splatting scene.
+- PlayCanvas `splat-transform` converts the trained PLY to `.sog` and `.compressed.ply` for SuperSplat viewing.
 - The worker uploads generated outputs back to S3-compatible storage.
 
 The backend sends an async RunPod job and later syncs the job result with:
@@ -94,7 +95,7 @@ The backend sends:
         "quality": "preview",
         "iterations": 30000
       },
-      "exports": ["ply"]
+      "exports": ["ply", "compressed_ply", "sog", "viewer_html"]
     }
   }
 }
@@ -110,10 +111,14 @@ On success:
   "project_id": "uuid",
   "outputs": {
     "ply": "gauss-saas/projects/uuid/output/model.ply",
+    "compressed_ply": "gauss-saas/projects/uuid/output/model.compressed.ply",
+    "sog": "gauss-saas/projects/uuid/output/model.sog",
+    "viewer_html": "gauss-saas/projects/uuid/output/viewer.html",
     "thumbnail": "gauss-saas/projects/uuid/output/thumbnail.jpg"
   },
   "metadata": {
-    "frames_used": 420
+    "frames_used": 420,
+    "conversion_errors": {}
   }
 }
 ```
@@ -137,4 +142,5 @@ On failure:
 - Keep RunPod disk size generous enough for frames, COLMAP output, and model checkpoints.
 - For higher quality, increase `training.iterations` and `frames.max_frames`, but expect longer GPU time.
 - The worker enforces a practical quality floor: at least 8 fps / 1600 frame budget and 30000 training iterations. COLMAP must register enough frames, otherwise the job fails with diagnostics instead of returning a very poor splat.
-- `.splat` or `.spz` export should be added only with a real converter. The MVP currently exports high-quality `.ply`, which the viewer attempts to load first.
+- `.sog` is the preferred PlayCanvas/SuperSplat delivery format. `.compressed.ply` and `.ply` are kept as fallbacks for debugging and download.
+- The Docker image installs Node.js 20, Vulkan runtime libraries, and `@playcanvas/splat-transform` so RunPod can emit the viewer-friendly formats inside the same job. SOG export tries GPU first and falls back to CPU for reliability.

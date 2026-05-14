@@ -51,12 +51,12 @@ def handler(job):
             log_event("Training Gaussian Splatting", project_id=project_id)
             ply_path = run_training(dataset_dir, model_dir, settings["training"])
             log_event("Converting outputs", project_id=project_id)
-            outputs = convert_outputs(ply_path, export_dir, settings.get("exports", ["ply"]))
+            outputs, conversion_errors = convert_outputs(ply_path, export_dir, settings.get("exports", ["ply"]))
             if thumbnail_path:
                 thumbnail_target = export_dir / "thumbnail.jpg"
                 thumbnail_target.write_bytes(thumbnail_path.read_bytes())
                 outputs["thumbnail"] = thumbnail_target
-            log_event("Uploading outputs", project_id=project_id, outputs=list(outputs.keys()))
+            log_event("Uploading outputs", project_id=project_id, outputs=list(outputs.keys()), conversion_errors=conversion_errors)
             uploaded = upload_outputs(outputs, output_prefix, output_bucket)
 
         log_event("Worker completed", project_id=project_id, outputs=uploaded)
@@ -64,7 +64,7 @@ def handler(job):
             "status": "completed",
             "project_id": project_id,
             "outputs": uploaded,
-            "metadata": {"frames_used": frames_used},
+            "metadata": {"frames_used": frames_used, "conversion_errors": conversion_errors},
         }
     except Exception as exc:
         error_traceback = traceback.format_exc()

@@ -1,5 +1,7 @@
 FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu22.04
 
+ARG GAUSSIAN_SPLATTING_REF=54c035f7834b564019656c3e3fcc3646292f727d
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
@@ -31,7 +33,12 @@ RUN mkdir -p /tmp/runtime-root && chmod 700 /tmp/runtime-root
 
 RUN python3 -m pip install --upgrade pip setuptools wheel
 
-RUN git clone --depth 1 --recursive --shallow-submodules https://github.com/graphdeco-inria/gaussian-splatting.git ${GAUSSIAN_SPLATTING_ROOT}
+RUN git init ${GAUSSIAN_SPLATTING_ROOT} \
+    && cd ${GAUSSIAN_SPLATTING_ROOT} \
+    && git remote add origin https://github.com/graphdeco-inria/gaussian-splatting.git \
+    && git fetch --depth 1 origin ${GAUSSIAN_SPLATTING_REF} \
+    && git checkout FETCH_HEAD \
+    && git submodule update --init --recursive --depth 1
 
 RUN python3 -m pip install \
     torch==2.3.1+cu121 \
@@ -39,11 +46,12 @@ RUN python3 -m pip install \
     --index-url https://download.pytorch.org/whl/cu121
 
 RUN python3 -m pip install \
-    plyfile \
-    tqdm \
-    opencv-python-headless
-
-RUN python3 -c "import cv2"
+    numpy==1.26.4 \
+    pillow==10.4.0 \
+    plyfile==1.1.2 \
+    tqdm==4.67.1 \
+    opencv-python-headless==4.10.0.84 \
+    joblib==1.4.2
 
 RUN python3 -m pip install --no-build-isolation \
     ${GAUSSIAN_SPLATTING_ROOT}/submodules/diff-gaussian-rasterization \
@@ -56,5 +64,6 @@ COPY requirements.txt .
 RUN python3 -m pip install -r requirements.txt
 
 COPY . .
+RUN python3 scripts/smoke_check.py
 
 CMD ["python3", "handler.py"]

@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 GAUSSIAN_ROOT = Path(os.getenv("GAUSSIAN_SPLATTING_ROOT", "/opt/gaussian-splatting"))
+APP_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(APP_ROOT))
 
 
 def main() -> None:

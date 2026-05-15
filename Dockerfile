@@ -40,7 +40,10 @@ RUN python3 -m pip install \
 
 RUN python3 -m pip install \
     plyfile \
-    tqdm
+    tqdm \
+    opencv-python-headless
+
+RUN python3 -c "import cv2"
 
 RUN python3 -m pip install --no-build-isolation \
     ${GAUSSIAN_SPLATTING_ROOT}/submodules/diff-gaussian-rasterization \

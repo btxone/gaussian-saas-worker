@@ -1,6 +1,9 @@
 from pathlib import Path
+import os
 import shutil
 import subprocess
+
+CONVERSION_TIMEOUT_SECONDS = int(os.getenv("SPLAT_TRANSFORM_TIMEOUT_SECONDS", "1800"))
 
 
 def convert_outputs(ply_path: Path, export_dir: Path, exports: list[str]) -> tuple[dict[str, Path], dict[str, str]]:
@@ -39,10 +42,13 @@ def convert_outputs(ply_path: Path, export_dir: Path, exports: list[str]) -> tup
         if export_name not in requested_exports:
             continue
         try:
+            print(f"Converting {export_name} to {target}", flush=True)
             _run_any(commands)
             outputs[export_name] = target
+            print(f"Converted {export_name} to {target}", flush=True)
         except Exception as exc:
             conversion_errors[export_name] = str(exc)
+            print(f"Conversion {export_name} failed: {exc}", flush=True)
 
     return outputs, conversion_errors
 
@@ -59,7 +65,20 @@ def _run_any(commands: list[list[str]]) -> None:
 
 
 def _run(command: list[str]) -> None:
-    result = subprocess.run(command, check=False, capture_output=True, text=True)
+    print(f"Running conversion command: {' '.join(command)}", flush=True)
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=CONVERSION_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        logs = "\n".join(part for part in [exc.stdout, exc.stderr] if part)
+        raise RuntimeError(
+            f"{' '.join(command)} timed out after {CONVERSION_TIMEOUT_SECONDS}s\n{_tail(logs)}"
+        ) from exc
     if result.returncode != 0:
         logs = "\n".join(part for part in [result.stdout, result.stderr] if part)
         raise RuntimeError(f"{' '.join(command)} failed with exit code {result.returncode}\n{_tail(logs)}")
